@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Dragon Evolution: High Fidelity</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #020617;
+            --bg-surface: #1E293B;
+            --primary: #6366F1;
+            --secondary: #F43F5E;
+            --accent: #10B981;
+            --gold: #F59E0B;
+            --text-main: #F8FAFC;
+            --text-dim: #94A3B8;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            margin: 0;
+            background: #000;
+            color: var(--text-main);
+            font-family: 'Noto Sans KR', sans-serif;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+        }
+
+        #game-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            height: 100%;
+            background: var(--bg-main);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Responsive Canvas Area */
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 65%;
+            z-index: 1;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Layered UI */
+        .ui-root {
+            position: relative;
+            z-index: 10;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none;
+            padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom) 16px;
+        }
+
+        .interactive { pointer-events: auto; }
+
+        /* Smooth UI Panels */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Header Styles */
+        .header-item {
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            padding: 8px 14px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        /* Buttons */
+        .btn-main {
+            background: var(--primary);
+            color: white;
+            border-radius: 18px;
+            padding: 16px;
+            font-weight: 800;
+            text-align: center;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 4px 0px #4338CA;
+            width: 100%;
+            text-shadow: 0 2px 0 rgba(0,0,0,0.2);
+        }
+
+        .btn-main:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0px #4338CA;
+        }
+
+        .btn-main.disabled {
+            background: #334155;
+            box-shadow: 0 4px 0px #1e293b;
+            opacity: 0.6;
+            cursor: not-allowed;
+            filter: grayscale(0.8);
+        }
+
+        /* Progress Components */
+        .bar-bg {
+            height: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 100px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 100px;
+            transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        /* Damage & Combat FX */
+        .dmg-text {
+            position: absolute;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 900;
+            pointer-events: none;
+            z-index: 100;
+            animation: floatUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        @keyframes floatUp {
+            0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+            30% { opacity: 1; transform: translate(-50%, -30px) scale(1.2); }
+            100% { transform: translate(-50%, -80px) scale(1); opacity: 0; }
+        }
+
+        /* Typography */
+        .font-title { font-family: 'Montserrat', sans-serif; font-weight: 900; letter-spacing: -0.02em; }
+        .font-label { font-size: 10px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+
+        /* Scene Transitions */
+        .scene {
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .hidden-scene {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(1.1);
+        }
+
+        /* Round System UI */
+        .round-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            margin: 0 3px;
+            transition: all 0.3s ease;
+        }
+        .round-active { background: var(--gold); box-shadow: 0 0 12px var(--gold); transform: scale(1.3); }
+        .round-done { background: var(--accent); }
+
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <!-- Game Canvas Layer -->
+    <div id="canvas-container">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+    
+    <!-- UI Layer -->
+    <div class="ui-root">
+        
+        <!-- TOP: Resource & Stage Info -->
+        <div id="hud-top" class="flex justify-between items-start pt-4 interactive opacity-0 transition-opacity duration-500">
+            <div class="header-item flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-[12px] text-white font-black shadow-lg">G</div>
+                <span id="gold-display" class="font-title text-lg tracking-tight">0</span>
+            </div>
+            
+            <div class="flex flex-col items-end gap-2">
+                <div class="header-item px-5 py-1.5 text-center min-w-[80px]">
+                    <div class="font-label text-[9px] text-indigo-200">STAGE</div>
+                    <div id="stage-display" class="font-title text-xl leading-none text-indigo-400 drop-shadow-md">1</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MIDDLE: Battle Info (Dynamic Spacer) -->
+        <div class="flex-1 flex flex-col items-center justify-start pt-12 pointer-events-none">
+            <div id="battle-info" class="opacity-0 transition-opacity duration-500 text-center w-full">
+                <div class="flex justify-center mb-3">
+                    <div id="battle-msg" class="bg-black/60 backdrop-blur-md border border-white/10 px-6 py-2 rounded-full text-xs font-bold text-amber-200 shadow-xl">
+                        Initializing System...
+                    </div>
+                </div>
+                <div id="round-dots" class="flex justify-center items-center h-4"></div>
+            </div>
+        </div>
+
+        <!-- BOTTOM: Character & Enemy Status -->
+        <div id="hud-bottom" class="pb-6 flex flex-col gap-3 interactive opacity-0 translate-y-8 transition-all duration-700 ease-out">
+            
+            <!-- Enemy Status Card -->
+            <div class="glass-panel p-4 border-rose-500/20 bg-gradient-to-r from-rose-900/40 to-slate-900/40">
+                <div class="flex justify-between items-center mb-2">
+                    <span id="enemy-label" class="font-title text-[10px] text-rose-400 tracking-wider">THREAT DETECTED</span>
+                    <span id="enemy-hp-text" class="font-title text-[11px] text-white/90">0 / 0</span>
+                </div>
+                <div class="bar-bg">
+                    <div id="enemy-hp-fill" class="bar-fill bg-gradient-to-r from-rose-500 to-pink-600 shadow-[0_0_15px_rgba(244,63,94,0.5)]" style="width: 0%"></div>
+                </div>
+                <!-- Time/Boss Limit Bar -->
+                <div class="w-full h-1 bg-white/5 mt-2.5 rounded-full overflow-hidden">
+                    <div id="timer-fill" class="h-full bg-indigo-400/60 transition-all duration-100" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <!-- Pet Status & Actions -->
+            <div class="glass-panel p-5 bg-gradient-to-b from-slate-800/80 to-slate-900/90">
+                <div class="flex justify-between items-start mb-5">
+                    <div>
+                        <div id="pet-name" class="font-title text-xl text-white drop-shadow-md">...</div>
+                        <div id="pet-info" class="font-label mt-1 text-indigo-300 font-bold">Waiting for hatch...</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-label text-emerald-300/80">Progress</div>
+                        <div id="exp-percent" class="font-title text-emerald-400 text-sm">0%</div>
+                    </div>
+                </div>
+
+                <!-- Stats Summary -->
+                <div class="grid grid-cols-4 gap-2 mb-5">
+                    <div class="bg-slate-950/50 rounded-xl p-2.5 text-center border border-white/5">
+                        <div class="font-label text-[8px] mb-0.5">ATK</div>
+                        <div id="stat-atk" class="font-title text-xs text-white">0</div>
+                    </div>
+                    <div class="bg-slate-950/50 rounded-xl p-2.5 text-center border border-white/5">
+                        <div class="font-label text-[8px] mb-0.5 text-emerald-400/80">SPD</div>
+                        <div id="stat-spd" class="font-title text-xs text-emerald-400">0</div>
+                    </div>
+                    <div class="bg-slate-950/50 rounded-xl p-2.5 text-center border border-white/5">
+                        <div class="font-label text-[8px] mb-0.5 text-amber-400/80">LUK</div>
+                        <div id="stat-luk" class="font-title text-xs text-amber-400">0</div>
+                    </div>
+                    <button onclick="activateBoost()" class="bg-indigo-600/20 rounded-xl p-2.5 text-center border border-indigo-500/30 active:scale-95 transition-transform hover:bg-indigo-600/30">
+                        <div class="font-label text-[8px] text-indigo-300 mb-0.5">BST</div>
+                        <div class="font-title text-xs text-indigo-300">⚡</div>
+                    </button>
+                </div>
+
+                <!-- XP Bar -->
+                <div class="bar-bg mb-5 bg-slate-950/60">
+                    <div id="exp-fill" class="bar-fill bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_10px_rgba(16,185,129,0.4)]" style="width: 0%"></div>
+                </div>
+
+                <!-- Main Action Button -->
+                <button id="action-btn" onclick="handleAction()" class="btn-main flex flex-col items-center gap-0.5 group">
+                    <span id="action-label" class="text-sm tracking-widest group-hover:scale-105 transition-transform">TRAINING</span>
+                    <span id="action-sub" class="text-[9px] font-medium opacity-80">Cost: 100 G</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Opening Scene (Overlay) -->
+    <div id="opening-ui" class="absolute inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-8 text-center scene">
+        <div class="mb-16 relative">
+            <div class="absolute inset-0 bg-indigo-500/20 blur-3xl rounded-full"></div>
+            <h1 class="font-title text-5xl mb-3 text-white leading-tight relative z-10 drop-shadow-2xl">
+                DRAGON<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">EVOLUTION</span>
+            </h1>
+            <p class="text-slate-400 font-medium text-sm relative z-10 tracking-wide">전설의 여정을 시작하세요</p>
+        </div>
+        <button onclick="startHatch()" class="relative z-10 bg-white text-slate-900 px-12 py-5 rounded-full font-black text-lg shadow-[0_0_30px_rgba(255,255,255,0.3)] hover:scale-105 active:scale-95 transition-all">
+            알 부화시키기
+        </button>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md hidden items-center justify-center p-6 interactive opacity-0 transition-opacity duration-300">
+        <div class="glass-panel w-full max-w-xs p-8 text-center border-indigo-500/40 transform transition-all scale-95" id="modal-box">
+            <h2 id="modal-title" class="font-title text-2xl mb-3 text-white drop-shadow-lg">TITLE</h2>
+            <p id="modal-content" class="text-slate-300 text-sm mb-8 leading-relaxed font-medium"></p>
+            <button onclick="closeModal()" class="btn-main py-3.5 text-sm bg-gradient-to-r from-indigo-600 to-purple-600">CONFIRM</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const wrapper = document.getElementById('game-wrapper');
+
+    let state = {
+        isStarted: false,
+        gold: 0,
+        stage: 1,
+        round: 1,
+        maxRounds: 10,
+        trainCount: 0,
+        trainCost: 100,
+        boostActive: false,
+        particles: [],
+        enemy: {
+            hp: 50, maxHp: 50, isAlive: false, 
+            isBoss: false, timer: 100, lastHit: 0, deathTime: 0,
+            seed: Math.random() 
+        },
+        pet: {
+            stage: 1,
+            exp: 0,
+            maxExp: 100,
+            type: 'NORMAL',
+            stats: { atk: 15, spd: 10, luk: 5 },
+            animFrame: 0
+        }
+    };
+
+    const NAMES = ["Mystic Egg", "Hatchling", "Ember Spike", "Sky Wyvern", "Terra Drake", "Ancient Guardian", "Astral Elder", "Star Lord", "Divine God"];
+    const COLORS = {
+        NORMAL: ['#818CF8', '#4F46E5', '#312E81', '#C7D2FE'], // Light, Main, Dark, Highlight
+        FIRE: ['#FB7185', '#E11D48', '#881337', '#FECDD3'],
+        AQUA: ['#38BDF8', '#0284C7', '#0C4A6E', '#BAE6FD'],
+        GOLD: ['#FCD34D', '#D97706', '#78350F', '#FEF3C7']
+    };
+
+    function resize() {
+        const container = document.getElementById('canvas-container');
+        canvas.width = container.clientWidth * window.devicePixelRatio;
+        canvas.height = container.clientHeight * window.devicePixelRatio;
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- Core Interaction ---
+    function startHatch() {
+        document.getElementById('opening-ui').classList.add('hidden-scene');
+        setTimeout(() => {
+            document.getElementById('opening-ui').style.display = 'none';
+            state.isStarted = true;
+            state.pet.stage = 2;
+            state.gold = 300;
+            
+            document.getElementById('hud-top').classList.replace('opacity-0', 'opacity-1');
+            document.getElementById('battle-info').classList.replace('opacity-0', 'opacity-1');
+            document.getElementById('hud-bottom').classList.remove('opacity-0', 'translate-y-8');
+            
+            initRoundUI();
+            spawnEnemy();
+        }, 500);
+    }
+
+    function initRoundUI() {
+        const container = document.getElementById('round-dots');
+        container.innerHTML = '';
+        for(let i=1; i<=state.maxRounds; i++) {
+            const d = document.createElement('div');
+            d.className = 'round-dot';
+            d.id = `rd-${i}`;
+            container.appendChild(d);
+        }
+        const boss = document.createElement('div');
+        boss.className = 'round-dot border border-amber-500/80 bg-amber-500/20 scale-125';
+        boss.id = 'rd-boss';
+        container.appendChild(boss);
+    }
+
+    function spawnEnemy() {
+        const factor = Math.pow(1.35, state.stage - 1);
+        state.enemy.seed = Math.random();
+        
+        if (state.round > state.maxRounds) {
+            state.enemy.isBoss = true;
+            state.enemy.maxHp = Math.floor(600 * factor);
+            document.getElementById('enemy-label').innerText = "⚠️ BOSS ENCOUNTER";
+            document.getElementById('enemy-label').className = "font-title text-[10px] text-amber-400 tracking-wider animate-pulse";
+            document.getElementById('battle-msg').innerText = "BOSS APPEARED!";
+            document.getElementById('battle-msg').className = "bg-amber-900/60 border border-amber-500/30 px-6 py-2 rounded-full text-xs font-bold text-amber-200 shadow-xl";
+        } else {
+            state.enemy.isBoss = false;
+            state.enemy.maxHp = Math.floor(45 * factor);
+            document.getElementById('enemy-label').innerText = `WILD BEAST ${state.round}/${state.maxRounds}`;
+            document.getElementById('enemy-label').className = "font-title text-[10px] text-rose-400 tracking-wider";
+            document.getElementById('battle-msg').innerText = "Hunting...";
+            document.getElementById('battle-msg').className = "bg-black/60 border border-white/10 px-6 py-2 rounded-full text-xs font-bold text-slate-300 shadow-xl";
+        }
+        state.enemy.hp = state.enemy.maxHp;
+        state.enemy.timer = 100;
+        state.enemy.isAlive = true;
+        updateRoundUI();
+    }
+
+    function updateRoundUI() {
+        for(let i=1; i<=state.maxRounds; i++) {
+            const el = document.getElementById(`rd-${i}`);
+            if (i < state.round) el.className = 'round-dot round-done';
+            else if (i === state.round && !state.enemy.isBoss) el.className = 'round-dot round-active';
+            else el.className = 'round-dot';
+        }
+        const boss = document.getElementById('rd-boss');
+        if (state.enemy.isBoss) boss.className = 'round-dot round-active border-amber-400';
+        else boss.className = 'round-dot border border-amber-500/50 bg-amber-500/10 scale-110';
+    }
+
+    function update() {
+        const now = Date.now();
+        state.pet.animFrame += 0.05;
+
+        if (state.isStarted) {
+            if (state.enemy.isAlive) {
+                const spd = Math.max(300, 1500 - (state.pet.stats.spd * 8));
+                if (now - state.enemy.lastHit > spd) {
+                    hitEnemy();
+                    state.enemy.lastHit = now;
+                }
+                if (state.enemy.isBoss) {
+                    state.enemy.timer -= 0.15;
+                    if (state.enemy.timer <= 0) resetStage();
+                }
+            } else if (now - state.enemy.deathTime > 800) {
+                spawnEnemy();
+            }
+        }
+
+        state.particles = state.particles.filter(p => {
+            p.x += p.vx; p.y += p.vy; p.life -= 0.03;
+            return p.life > 0;
+        });
+
+        draw();
+        if (state.isStarted) updateUI();
+        requestAnimationFrame(update);
+    }
+
+    function hitEnemy() {
+        const dmg = state.boostActive ? state.pet.stats.atk * 2 : state.pet.stats.atk;
+        const crit = Math.random() * 100 < state.pet.stats.luk;
+        const finalDmg = crit ? Math.floor(dmg * 2.0) : dmg;
+        
+        state.enemy.hp -= finalDmg;
+        spawnHitParticles();
+        showDmg(finalDmg, crit);
+        
+        if (state.enemy.hp <= 0) {
+            state.enemy.isAlive = false;
+            state.enemy.deathTime = Date.now();
+            const reward = Math.floor((state.enemy.isBoss ? 600 : 50) * Math.pow(1.2, state.stage-1));
+            state.gold += reward;
+            spawnCoins(5);
+            
+            if (state.enemy.isBoss) {
+                state.stage++;
+                state.round = 1;
+                showModal("SECTOR CLEARED", `Stage ${state.stage-1} Complete! advancing to deeper zone.`);
+            } else {
+                state.round++;
+            }
+        }
+    }
+
+    function resetStage() {
+        state.round = 1;
+        state.enemy.isAlive = false;
+        state.enemy.deathTime = Date.now();
+        showFloatingText("RETREATING...", "#F43F5E");
+        document.getElementById('battle-msg').innerText = "Tactical Retreat...";
+        document.getElementById('battle-msg').className = "bg-rose-900/80 border border-rose-500 px-6 py-2 rounded-full text-xs font-bold text-white shadow-xl";
+    }
+
+    function draw() {
+        const w = canvas.width / window.devicePixelRatio;
+        const h = canvas.height / window.devicePixelRatio;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const s = w / 400; 
+        const cx = canvas.width / 2;
+        const cy = canvas.height * 0.7;
+
+        if (!state.isStarted) {
+            drawDragon(cx, cy - 50*s, 1, 'NORMAL', s * 1.5, state.pet.animFrame);
+        } else {
+            const dragonX = cx - 90*s;
+            const enemyX = cx + 90*s;
+            const dragonY = cy;
+            const enemyY = cy;
+
+            drawDragon(dragonX, dragonY, state.pet.stage, state.pet.type, s, state.pet.animFrame);
+            
+            if (state.enemy.isAlive) {
+                drawMonster(enemyX, enemyY, state.enemy.isBoss, s, state.pet.animFrame, state.enemy.seed);
+            }
+        }
+
+        state.particles.forEach(p => {
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size * s, 0, Math.PI*2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+    }
+
+    function drawDragon(x, y, stage, type, s, frame) {
+        const c = COLORS[type] || COLORS.NORMAL;
+        const hover = Math.sin(frame * 0.5) * 8 * s;
+        
+        ctx.save();
+        ctx.translate(x, y + hover);
+        
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); 
+        ctx.ellipse(0, 70*s - hover, 40*s + (hover/2), 10*s, 0, 0, Math.PI*2); 
+        ctx.fill();
+
+        if (stage === 1) { // Egg
+            const wobble = Math.sin(frame * 2) * 0.05;
+            ctx.rotate(wobble);
+            
+            // Texture
+            const grad = ctx.createRadialGradient(-10*s, -20*s, 5*s, 0, 0, 60*s);
+            grad.addColorStop(0, c[0]);
+            grad.addColorStop(1, c[2]);
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.ellipse(0, 0, 35*s, 45*s, 0, 0, Math.PI*2); ctx.fill();
+            
+            // Spots
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.beginPath(); ctx.arc(10*s, -20*s, 5*s, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(-15*s, 10*s, 8*s, 0, Math.PI*2); ctx.fill();
+        } 
+        else { // Dragon (Hatchling or Adult)
+            const isAdult = stage > 2;
+            const bodyScale = isAdult ? 1.2 : 0.8;
+            
+            // Tail
+            ctx.beginPath();
+            ctx.moveTo(-10*s, 20*s);
+            ctx.bezierCurveTo(-60*s, 40*s, -80*s, -10*s + Math.sin(frame)*10*s, -90*s, 0);
+            ctx.strokeStyle = c[2];
+            ctx.lineWidth = 12 * s * bodyScale;
+            ctx.lineCap = "round";
+            ctx.stroke();
+
+            // Wing (Back)
+            ctx.save();
+            ctx.translate(10*s, -20*s);
+            ctx.rotate(Math.sin(frame)*0.2); // Flap
+            ctx.fillStyle = c[2];
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(50*s * bodyScale, -50*s * bodyScale);
+            ctx.quadraticCurveTo(70*s * bodyScale, 0, 20*s * bodyScale, 20*s * bodyScale);
+            ctx.fill();
+            ctx.restore();
+
+            // Body
+            const bodyGrad = ctx.createLinearGradient(-20*s, -40*s, 20*s, 40*s);
+            bodyGrad.addColorStop(0, c[0]);
+            bodyGrad.addColorStop(1, c[1]);
+            ctx.fillStyle = bodyGrad;
+            
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 30*s * bodyScale, 40*s * bodyScale, Math.PI/12, 0, Math.PI*2);
+            ctx.fill();
+
+            // Belly Scales
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.beginPath();
+            ctx.ellipse(5*s, 0, 15*s * bodyScale, 25*s * bodyScale, Math.PI/12, 0, Math.PI*2);
+            ctx.fill();
+
+            // Head
+            ctx.save();
+            ctx.translate(5*s, -45*s * bodyScale);
+            ctx.rotate(Math.sin(frame*0.5)*0.05); 
+            
+            // Snout/Head Shape
+            ctx.fillStyle = c[0];
+            ctx.beginPath();
+            ctx.moveTo(0, 10*s); // Neck connection
+            ctx.lineTo(-20*s, 5*s); // Jaw
+            ctx.lineTo(-25*s, -10*s); // Snout tip
+            ctx.lineTo(-5*s, -25*s); // Forehead
+            ctx.lineTo(15*s, -15*s); // Back head
+            ctx.lineTo(10*s, 10*s);
+            ctx.fill();
+
+            // Horns
+            if (isAdult) {
+                ctx.fillStyle = c[3];
+                ctx.beginPath();
+                ctx.moveTo(5*s, -20*s);
+                ctx.quadraticCurveTo(20*s, -40*s, 30*s, -30*s);
+                ctx.lineTo(10*s, -15*s);
+                ctx.fill();
+            }
+
+            // Eye
+            ctx.fillStyle = '#FFF';
+            ctx.beginPath(); ctx.ellipse(-10*s, -10*s, 6*s, 8*s, -0.2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#0F172A'; // Pupil
+            ctx.beginPath(); ctx.ellipse(-10*s, -10*s, 2*s, 5*s, -0.2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#FFF'; // Shine
+            ctx.beginPath(); ctx.arc(-12*s, -14*s, 2*s, 0, Math.PI*2); ctx.fill();
+
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+
+    function drawMonster(x, y, isBoss, s, frame, seed) {
+        const hover = Math.sin(frame + 2) * 5 * s;
+        ctx.save();
+        ctx.translate(x, y + hover);
+        
+        const scale = isBoss ? 1.5 : 0.9;
+        ctx.scale(scale, scale);
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); 
+        ctx.ellipse(0, 50*s - hover, 30*s, 8*s, 0, 0, Math.PI*2); 
+        ctx.fill();
+
+        // Monster Body
+        const hue = isBoss ? 30 : 340; 
+        const colorMain = `hsl(${hue}, 80%, 50%)`;
+        
+        ctx.fillStyle = colorMain;
+        
+        // Dynamic Blob Shape
+        ctx.beginPath();
+        if (seed > 0.5) {
+            ctx.arc(0, 0, 30*s, 0, Math.PI*2);
+        } else {
+            ctx.moveTo(-30*s, -30*s);
+            ctx.lineTo(30*s, -30*s);
+            ctx.lineTo(0, 40*s);
+        }
+        ctx.fill();
+
+        // Face
+        ctx.fillStyle = '#1E293B';
+        ctx.beginPath(); ctx.arc(0, 0, 18*s, 0, Math.PI*2); ctx.fill();
+
+        // Glowing Eye
+        ctx.fillStyle = isBoss ? '#F59E0B' : '#F43F5E';
+        ctx.shadowBlur = 15; ctx.shadowColor = ctx.fillStyle;
+        ctx.beginPath(); ctx.arc(0, 0, 8*s, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Spikes
+        if (isBoss) {
+            ctx.fillStyle = '#CBD5E1';
+            for(let i=0; i<3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(-20*s + i*20*s, -25*s);
+                ctx.lineTo(-20*s + i*20*s, -50*s);
+                ctx.lineTo(-10*s + i*20*s, -20*s);
+                ctx.fill();
+            }
+        }
+
+        ctx.restore();
+    }
+
+    function spawnHitParticles() {
+        const cx = canvas.width / 2;
+        const cy = canvas.height * 0.7;
+        const s = canvas.width / 400;
+        const x = cx + 80*s;
+        
+        for(let i=0; i<6; i++) {
+            state.particles.push({
+                x: x + (Math.random()-0.5)*40,
+                y: cy + (Math.random()-0.5)*40,
+                vx: (Math.random()-0.5)*15,
+                vy: (Math.random()-0.5)*15,
+                life: 1,
+                size: Math.random()*4 + 1,
+                color: '#fff'
+            });
+        }
+    }
+
+    function spawnCoins(count) {
+        const cx = canvas.width / 2;
+        const cy = canvas.height * 0.7;
+        for(let i=0; i<count; i++) {
+            state.particles.push({
+                x: cx + 90, y: cy,
+                vx: (Math.random()-0.8)*12,
+                vy: (Math.random()-0.5)*12 - 12,
+                life: 1.5,
+                size: 5,
+                color: '#F59E0B'
+            });
+        }
+    }
+
+    function showFloatingText(text, color) {
+        const div = document.createElement('div');
+        div.className = 'dmg-text';
+        div.innerText = text;
+        div.style.color = color || '#F8FAFC';
+        div.style.left = '50%';
+        div.style.top = '60%';
+        wrapper.appendChild(div);
+        setTimeout(() => div.remove(), 800);
+    }
+
+    function showDmg(val, crit) {
+        const div = document.createElement('div');
+        div.className = 'dmg-text';
+        div.innerText = val;
+        div.style.color = crit ? '#F59E0B' : '#F8FAFC';
+        div.style.fontSize = crit ? '28px' : '18px';
+        div.style.left = (55 + (Math.random()*15)) + '%'; 
+        div.style.top = '55%';
+        wrapper.appendChild(div);
+        setTimeout(() => div.remove(), 800);
+    }
+
+    function updateUI() {
+        const p = state.pet;
+        const isReady = p.exp >= p.maxExp;
+        
+        document.getElementById('gold-display').innerText = Math.floor(state.gold).toLocaleString();
+        document.getElementById('stage-display').innerText = state.stage;
+        document.getElementById('pet-name').innerText = NAMES[p.stage-1];
+        document.getElementById('pet-info').innerText = `${p.type} TYPE • LVL ${state.trainCount + 1}`;
+        
+        document.getElementById('stat-atk').innerText = p.stats.atk;
+        document.getElementById('stat-spd').innerText = p.stats.spd;
+        document.getElementById('stat-luk').innerText = p.stats.luk + "%";
+
+        const xpPct = Math.min(100, (p.exp / p.maxExp) * 100);
+        document.getElementById('exp-fill').style.width = xpPct + "%";
+        document.getElementById('exp-percent').innerText = Math.floor(xpPct) + "%";
+
+        const hpPct = Math.max(0, (state.enemy.hp / state.enemy.maxHp) * 100);
+        document.getElementById('enemy-hp-fill').style.width = hpPct + "%";
+        document.getElementById('enemy-hp-text').innerText = `${Math.ceil(state.enemy.hp)} / ${state.enemy.maxHp}`;
+        document.getElementById('timer-fill').style.width = state.enemy.timer + "%";
+
+        const btn = document.getElementById('action-btn');
+        if (isReady) {
+            btn.classList.remove('disabled');
+            btn.style.background = "var(--accent)";
+            btn.style.boxShadow = "0 4px 0px #059669";
+            document.getElementById('action-label').innerText = "EVOLVE NOW";
+            document.getElementById('action-sub').innerText = "UNLEASH POWER";
+        } else {
+            btn.style.background = "var(--primary)";
+            btn.style.boxShadow = "0 4px 0px #4338CA";
+            document.getElementById('action-label').innerText = "TRAINING";
+            document.getElementById('action-sub').innerText = `Cost: ${state.trainCost.toLocaleString()} G`;
+            if (state.gold < state.trainCost) btn.classList.add('disabled');
+            else btn.classList.remove('disabled');
+        }
+    }
+
+    function handleAction() {
+        if (state.pet.exp >= state.pet.maxExp) {
+            state.pet.stage++;
+            state.pet.exp = 0;
+            state.pet.maxExp = Math.floor(state.pet.maxExp * 1.7);
+            state.pet.stats.atk += 50;
+            if (state.pet.stage === 3) {
+                const types = ['FIRE', 'AQUA', 'GOLD'];
+                state.pet.type = types[Math.floor(Math.random()*3)];
+            }
+            showModal("EVOLUTION", `Your dragon has evolved into ${NAMES[state.pet.stage-1]}!`);
+        } else if (state.gold >= state.trainCost) {
+            state.gold -= state.trainCost;
+            state.trainCount++;
+            state.pet.exp += 20;
+            state.pet.stats.atk += 8;
+            state.pet.stats.spd += 3;
+            if(Math.random() > 0.8) state.pet.stats.luk += 1;
+            state.trainCost = Math.floor(100 * Math.pow(1.2, state.trainCount));
+            
+            const btn = document.getElementById('action-btn');
+            btn.style.transform = "scale(0.95)";
+            setTimeout(() => btn.style.transform = "scale(1)", 100);
+        }
+    }
+
+    function activateBoost() {
+        if (state.boostActive) return;
+        state.boostActive = true;
+        document.getElementById('battle-msg').innerText = "⚡ BOOST ACTIVE! ⚡";
+        setTimeout(() => { state.boostActive = false; }, 8000);
+    }
+
+    function showModal(title, msg) {
+        const modal = document.getElementById('modal-overlay');
+        const box = document.getElementById('modal-box');
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-content').innerText = msg;
+        
+        modal.style.display = 'flex';
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            box.classList.remove('scale-95');
+        }, 10);
+    }
+    
+    function closeModal() { 
+        const modal = document.getElementById('modal-overlay');
+        const box = document.getElementById('modal-box');
+        modal.classList.add('opacity-0');
+        box.classList.add('scale-95');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    update();
+</script>
+
+</body>
+</html>
